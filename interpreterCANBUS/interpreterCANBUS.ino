@@ -104,10 +104,11 @@ double decodeCAN(unsigned char rxBufD[], int lengthD, int startBit, int bitLengt
 
       String tempdata = toBinary(rxBufD[x], 8);
 
-      //For LSB byte order flip each individual chunk of 8 bits around
+      //For LSB byte order flip each byte around first
       if(byteOrder == "LSB" || byteOrder == "lsb" || byteOrder == "intel" || byteOrder == "INTEL"){
         tempdata = reverseString(tempdata);
       }
+      //Merge into mega long string
       DataBinaryString = DataBinaryString + tempdata;     
     }
     
