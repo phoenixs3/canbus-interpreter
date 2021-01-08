@@ -81,7 +81,7 @@ void canread(){
     case 0x123:
     //do somthing
       Serial.print("decoded message:: ");
-      double iboosterstroke = decodeCAN(inMsg.buf, inMsg.len, 4, 8, "msb", "UNSIGNED", 1, 0, 0, 255);
+      double iboosterstroke = decodeCAN(inMsg.buf, inMsg.len, 47, 17, "LSB", "UNSIGNED", 1, 0, -200000, 200000);
       Serial.print(iboosterstroke);
       Serial.println("mm");
     break;
@@ -115,9 +115,7 @@ double decodeCAN(unsigned char rxBufD[], int lengthD, int startBit, int bitLengt
     Serial.println(DataBinaryString);
 
     //Todo: handle out of bounds selection
-    
     if(byteOrder == "MSB" || byteOrder == "msb" || byteOrder == "motorola" || byteOrder == "MOTOROLA"){
-        //not working!!!!!
         int startbitcalc = 0;
         if(startBit < 8 && startBit > -1){startbitcalc = (7 - startBit);}
         if(startBit < 16 && startBit > 7){startbitcalc = (15 - startBit) + 8;}
@@ -135,9 +133,7 @@ double decodeCAN(unsigned char rxBufD[], int lengthD, int startBit, int bitLengt
         Serial.println((startbitcalc)+bitLength);
         
         DataBinaryString = DataBinaryString.substring(startbitcalc, ((startbitcalc)+bitLength));
-    } else {
-        DataBinaryString = DataBinaryString.substring(startBit, (startBit+bitLength));
-    }
+    } else {DataBinaryString = DataBinaryString.substring(startBit, (startBit+bitLength));}
 
     Serial.print("Extracted data portion: ");
     Serial.println(DataBinaryString);
