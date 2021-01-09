@@ -33,18 +33,6 @@ void setup() {
   allPassFilter.rtr = 0;
   for (int filterNum = 4; filterNum < 16; filterNum++) {Can0.setFilter(allPassFilter, filterNum);}
 
-  //Some fake Data
-  rxId = 0x256;
-  len = 8;
-  rxBuf[0] = 0x7F;
-  rxBuf[1] = 0x7E;
-  rxBuf[2] = 0x01;
-  rxBuf[3] = 0x01;
-  rxBuf[4] = 0x01;
-  rxBuf[5] = 0x01;
-  rxBuf[6] = 0x01;
-  rxBuf[7] = 0x01;
-
   Serial.setTimeout(20);
   Serial.println("done");
 }
@@ -53,25 +41,66 @@ void loop() {
   if (Serial.available() > 0){
     int tempint = Serial.parseInt();
     //Sets requested charging current to serial input (providing its within allowable range)
-    if (tempint > 0){rxBuf[1] = tempint;}
-
-      Serial.print("Received text:");
+    if (tempint > 0){
+      
+      Serial.print("Received text: ");
       Serial.println(tempint);
 
-    //Still undiceded if i want to switch to struct for input variable
-     signalData testSignal= {
-     };
+      msg.id  = 0x120;
+      msg.len = 8;
+      msg.ext = 0;
+      msg.buf[0] = 0x00;  
+      msg.buf[1] = 0x00;
+      msg.buf[2] = 0x00;
+      msg.buf[3] = 0x00;
+      msg.buf[4] = 0x00;
+      msg.buf[5] = 0x00;
+      msg.buf[6] = 0x00;
+      msg.buf[7] = 0x00;
 
-     double testdata = decodeCAN(rxBuf, len, 0, 8, "LSB", "SIGNED", 1, 0, 0, 100);
+      Serial.println("");
+      Serial.println("Outbound message before encode:");
+      Serial.print("ID: ");
+      Serial.println(msg.id);
+      Serial.print("LENGTH: ");
+      Serial.println(msg.len);
+      Serial.print("EXT: ");
+      Serial.println(msg.ext);
+      Serial.println("DATA: ");
+      Serial.println(msg.buf[0]);
+      Serial.println(msg.buf[1]);
+      Serial.println(msg.buf[2]);
+      Serial.println(msg.buf[3]);
+      Serial.println(msg.buf[4]);
+      Serial.println(msg.buf[5]);
+      Serial.println(msg.buf[6]);
+      Serial.println(msg.buf[7]);
+      Serial.println("");
 
-     Serial.println("");
-     Serial.println("");
-     Serial.print("Decoded Data: ");
-     Serial.println(testdata);
-     Serial.println("");
+      msg = encodeCAN(msg, -1, 0, 8, "LSB", "SIGNED", 1, 0);
+
+      Serial.println("");
+      Serial.println("Outbound message after encode:");
+      Serial.print("ID: ");
+      Serial.println(msg.id);
+      Serial.print("LENGTH: ");
+      Serial.println(msg.len);
+      Serial.print("EXT: ");
+      Serial.println(msg.ext);
+      Serial.println("DATA: ");
+      Serial.println(msg.buf[0]);
+      Serial.println(msg.buf[1]);
+      Serial.println(msg.buf[2]);
+      Serial.println(msg.buf[3]);
+      Serial.println(msg.buf[4]);
+      Serial.println(msg.buf[5]);
+      Serial.println(msg.buf[6]);
+      Serial.println(msg.buf[7]);
+      Serial.println("");
+
+    }
     
   }
- 
   while (Can0.available()){canread();}
 }
 
@@ -79,13 +108,10 @@ void canread(){
   Can0.read(inMsg);
   switch (inMsg.id) {
     case 0x0C2:
-      Serial.print("steeringangle:: ");
-      double iboosterstroke = decodeCAN(inMsg.buf, inMsg.len, 0, 15, "MSB", "UNSIGNED", 0.04375, 0, -200000, 200000);
-      Serial.print(iboosterstroke);
-      Serial.println(" grad");
-
-      //if(iboosterstroke == 0){Serial.println("Released");}
-      //if(iboosterstroke == 1){Serial.println("Applied");}
+      Serial.print("decoded data: ");
+      double decodeddata = decodeCAN(inMsg.buf, inMsg.len, 0, 15, "MSB", "SIGNED", 0.04375, 0);
+      Serial.print(decodeddata);
+      Serial.println(" units");
     break;
     
     default:
@@ -93,55 +119,90 @@ void canread(){
   }
 }
 
-//Function for decoding canbus data, returns double of decoded data
-//Arguments: Input data array, frame length, starting bit, signal bit length, byte order, 
-//           return data type (UINT, SINT), scale, bias, minValue, maxValue, mux, muxValue
-double decodeCAN(unsigned char rxBufD[], int lengthD, int startBit, int bitLength, String byteOrder, 
-                              String dataType, double Scale, double bias, double minVal, double maxVal){
+CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int bitLength, String byteOrder, String dataType, double Scale, double bias){
 
-    //Gets all received data and converts to super long string
-    String DataBinaryString;
-    for(int x=0; x<lengthD; x++){    
-      //DataBinaryString = DataBinaryString + toBinary(rxBufD[x], 8);
+    //////////////////////////////////////////////////////////////////////////////
+    //Step 1 Reverse Scale and bias
+    //////////////////////////////////////////////////////////////////////////////
+    inputData = (1/Scale) * (inputData - bias);
+    Serial.print("After scale and bias: ");
+    Serial.println(inputData);
 
-      String tempdata = toBinary(rxBufD[x], 8);
-
-      //For LSB byte order flip each byte around first
-      if(byteOrder == "LSB" || byteOrder == "lsb" || byteOrder == "intel" || byteOrder == "INTEL"){
-        tempdata = reverseString(tempdata);
-      }
-      //Merge into mega long string
-      DataBinaryString = DataBinaryString + tempdata;     
+    //////////////////////////////////////////////////////////////////////////////
+    //Step 2 Account for signed values
+    //////////////////////////////////////////////////////////////////////////////
+    int maxTheoraticalValue = (pow(2,bitLength)-1);                                                        //Minus one to account for zero
+    Serial.print("max theoretical value:");
+    Serial.println(maxTheoraticalValue);
+    
+    if(dataType == "SIGNED" || dataType == "signed"){
+      if(inputData < 0){inputData = inputData + (maxTheoraticalValue+1);}                                  //Convert to signed value
+      Serial.print("After being signed: ");
+      Serial.println(inputData);
     }
     
+    //////////////////////////////////////////////////////////////////////////////
+    //Step 3 Convert to string
+    //////////////////////////////////////////////////////////////////////////////
+    String DataBinaryString = toBinary((int)inputData, bitLength);
+    Serial.print("DataBinaryString: ");
+    Serial.println(DataBinaryString);
+    
+    
+    
+    
+    msg.buf[0] = inputData;
+    return msg;
+  
+}
+
+//Function for decoding canbus data, returns double of decoded data
+//Arguments: Input data array, frame length, starting bit, signal bit length, byte order, 
+//           return data type (unsigned, signed), scale, bias, minValue, maxValue, mux, muxValue
+double decodeCAN(unsigned char rxBufD[], int lengthD, int startBit, int bitLength, String byteOrder, String dataType, double Scale, double bias){
+
+
+    //////////////////////////////////////////////////////////////////////////////
+    //Step 1 - Gets all received data and converts to super long string
+    //////////////////////////////////////////////////////////////////////////////
+    String DataBinaryString;
+    for(int x=0; x<lengthD; x++){    
+      String tempdata = toBinary(rxBufD[x], 8); 
+      if(byteOrder == "LSB" || byteOrder == "lsb" || byteOrder == "intel" || byteOrder == "INTEL"){
+        tempdata = reverseString(tempdata);                                                               //For LSB byte order flip each byte around first
+      }
+      DataBinaryString = DataBinaryString + tempdata;                                                     //Merge into mega long string
+    } 
     //Serial.print("Raw Binary Data input: ");
     //Serial.println(DataBinaryString);
 
-    //Todo: handle out of bounds selection
+
+    //////////////////////////////////////////////////////////////////////////////
+    //Step 2 - Calculate section of string to select
+    //////////////////////////////////////////////////////////////////////////////
     if(byteOrder == "MSB" || byteOrder == "msb" || byteOrder == "motorola" || byteOrder == "MOTOROLA"){
         int startbitcalc = 0;
-        if(startBit < 8 && startBit > -1){startbitcalc = (7 - startBit);}
-        if(startBit < 16 && startBit > 7){startbitcalc = (15 - startBit) + 8;}
+        if(startBit < 8 && startBit > -1) {startbitcalc = (7 - startBit);}
+        if(startBit < 16 && startBit > 7) {startbitcalc = (15 - startBit) + 8;}
         if(startBit < 24 && startBit > 15){startbitcalc = (23 - startBit) + 16;}
         if(startBit < 32 && startBit > 23){startbitcalc = (31 - startBit) + 24;}
         if(startBit < 40 && startBit > 31){startbitcalc = (39 - startBit) + 32;}
         if(startBit < 48 && startBit > 39){startbitcalc = (47 - startBit) + 40;}
         if(startBit < 56 && startBit > 47){startbitcalc = (55 - startBit) + 48;}
         if(startBit < 64 && startBit > 55){startbitcalc = (63 - startBit) + 56;}
-
         //Serial.print("startbitcalc: ");
         //Serial.println(startbitcalc);
-
         //Serial.print("endbit: ");
-        //Serial.println((startbitcalc)+bitLength);
-        
+        //Serial.println((startbitcalc)+bitLength);     
         DataBinaryString = DataBinaryString.substring(startbitcalc, ((startbitcalc)+bitLength));
     } else {DataBinaryString = DataBinaryString.substring(startBit, (startBit+bitLength));}
-
     //Serial.print("Extracted data portion: ");
     //Serial.println(DataBinaryString);
 
-    //Todo: add detection for invalid byteorder arguments
+
+    //////////////////////////////////////////////////////////////////////////////
+    //Step 3 - Byte order correction
+    //////////////////////////////////////////////////////////////////////////////
     if(byteOrder == "LSB" || byteOrder == "lsb" || byteOrder == "intel" || byteOrder == "INTEL"){
       DataBinaryString = reverseString(DataBinaryString);  
     }
@@ -149,37 +210,31 @@ double decodeCAN(unsigned char rxBufD[], int lengthD, int startBit, int bitLengt
     //Serial.println(DataBinaryString); 
 
 
-
-    //First check the length so if signed it can be adjusted
-    int maxTheoraticalValue = (pow(2,(DataBinaryString.length()))-1);   //Minus one to account for zero
+    //////////////////////////////////////////////////////////////////////////////
+    //Step 4 - Account for signed 
+    //////////////////////////////////////////////////////////////////////////////
+    int maxTheoraticalValue = (pow(2,(DataBinaryString.length()))-1);                                    //Minus one to account for zero
     //Serial.print("max theoretical value:");
     //Serial.println(maxTheoraticalValue);
-
-
-    //Data can now be converted to integer
-    char tempholder[64];  //Max Size Data could be
-    DataBinaryString.toCharArray(tempholder,64);
-    int dataInteger = strtol(tempholder, NULL, 2);
+    char tempholder[64];                                                                                 //char array with max size of data
+    DataBinaryString.toCharArray(tempholder,64);                                                         //string to char array
+    int dataInteger = strtol(tempholder, NULL, 2);                                                       //Convert from binary (base 2) to decimal
     //Serial.print("Raw integer: ");
     //Serial.println(dataInteger);
-
     if(dataType == "SIGNED" || dataType == "signed"){
-      if(dataInteger > (maxTheoraticalValue/2)){dataInteger = dataInteger - (maxTheoraticalValue+1);}
+      if(dataInteger > (maxTheoraticalValue/2)){dataInteger = dataInteger - (maxTheoraticalValue+1);}    //Convert to signed value
     }
-
     //Serial.print("After being signed: ");
     //Serial.println(DataBinaryString);
 
-    //Scale & bias/offset
-    //Referenced from: https://www.csselectronics.com/screen/page/can-dbc-file-database-intro/language/en
-    double returnData = bias + (Scale*dataInteger);
 
-    //Minval, maxval
-    if(returnData < minVal){returnData = minVal;}
-    if(returnData > maxVal){returnData = maxVal;}
+    //////////////////////////////////////////////////////////////////////////////
+    //Step 5 - Scale and bias
+    //////////////////////////////////////////////////////////////////////////////
+    //Referenced from: https://www.csselectronics.com/screen/page/can-dbc-file-database-intro/language/en
+    double returnData = bias + (Scale*dataInteger);   
     
-    return(returnData);
-  
+    return(returnData); 
 }
 
 String reverseString(String inputString){
