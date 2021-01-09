@@ -62,7 +62,7 @@ void loop() {
      signalData testSignal= {
      };
 
-     double testdata = decodeCAN(rxBuf, len, 0, 8, "MSB", "SIGNED", 1, 0, 0, 100);
+     double testdata = decodeCAN(rxBuf, len, 0, 8, "LSB", "SIGNED", 1, 0, 0, 100);
 
      Serial.println("");
      Serial.println("");
@@ -78,12 +78,14 @@ void loop() {
 void canread(){
   Can0.read(inMsg);
   switch (inMsg.id) {
-    case 0x123:
-    //do somthing
-      Serial.print("decoded message:: ");
-      double iboosterstroke = decodeCAN(inMsg.buf, inMsg.len, 47, 17, "LSB", "UNSIGNED", 1, 0, -200000, 200000);
+    case 0x0C2:
+      Serial.print("steeringangle:: ");
+      double iboosterstroke = decodeCAN(inMsg.buf, inMsg.len, 0, 15, "MSB", "UNSIGNED", 0.04375, 0, -200000, 200000);
       Serial.print(iboosterstroke);
-      Serial.println("mm");
+      Serial.println(" grad");
+
+      //if(iboosterstroke == 0){Serial.println("Released");}
+      //if(iboosterstroke == 1){Serial.println("Applied");}
     break;
     
     default:
@@ -112,8 +114,8 @@ double decodeCAN(unsigned char rxBufD[], int lengthD, int startBit, int bitLengt
       DataBinaryString = DataBinaryString + tempdata;     
     }
     
-    Serial.print("Raw Binary Data input: ");
-    Serial.println(DataBinaryString);
+    //Serial.print("Raw Binary Data input: ");
+    //Serial.println(DataBinaryString);
 
     //Todo: handle out of bounds selection
     if(byteOrder == "MSB" || byteOrder == "msb" || byteOrder == "motorola" || byteOrder == "MOTOROLA"){
@@ -127,41 +129,46 @@ double decodeCAN(unsigned char rxBufD[], int lengthD, int startBit, int bitLengt
         if(startBit < 56 && startBit > 47){startbitcalc = (55 - startBit) + 48;}
         if(startBit < 64 && startBit > 55){startbitcalc = (63 - startBit) + 56;}
 
-        Serial.print("startbitcalc: ");
-        Serial.println(startbitcalc);
+        //Serial.print("startbitcalc: ");
+        //Serial.println(startbitcalc);
 
-        Serial.print("endbit: ");
-        Serial.println((startbitcalc)+bitLength);
+        //Serial.print("endbit: ");
+        //Serial.println((startbitcalc)+bitLength);
         
         DataBinaryString = DataBinaryString.substring(startbitcalc, ((startbitcalc)+bitLength));
     } else {DataBinaryString = DataBinaryString.substring(startBit, (startBit+bitLength));}
 
-    Serial.print("Extracted data portion: ");
-    Serial.println(DataBinaryString);
+    //Serial.print("Extracted data portion: ");
+    //Serial.println(DataBinaryString);
 
     //Todo: add detection for invalid byteorder arguments
     if(byteOrder == "LSB" || byteOrder == "lsb" || byteOrder == "intel" || byteOrder == "INTEL"){
       DataBinaryString = reverseString(DataBinaryString);  
     }
+    //Serial.print("After byte order correction: ");
+    //Serial.println(DataBinaryString); 
 
-    Serial.print("After byte order correction: ");
-    Serial.println(DataBinaryString); 
+
 
     //First check the length so if signed it can be adjusted
-    int maxTheoraticalValue = pow(2,(DataBinaryString.length()))-1;   //Minus one to account for zero
+    int maxTheoraticalValue = (pow(2,(DataBinaryString.length()))-1);   //Minus one to account for zero
+    //Serial.print("max theoretical value:");
+    //Serial.println(maxTheoraticalValue);
+
 
     //Data can now be converted to integer
     char tempholder[64];  //Max Size Data could be
     DataBinaryString.toCharArray(tempholder,64);
     int dataInteger = strtol(tempholder, NULL, 2);
+    //Serial.print("Raw integer: ");
+    //Serial.println(dataInteger);
 
-    Serial.print("Raw integer: ");
-    Serial.println(dataInteger);
+    if(dataType == "SIGNED" || dataType == "signed"){
+      if(dataInteger > (maxTheoraticalValue/2)){dataInteger = dataInteger - (maxTheoraticalValue+1);}
+    }
 
-    if(dataType == "SIGNED"){dataInteger = dataInteger - (maxTheoraticalValue/2);}
-
-    Serial.print("After being signed: ");
-    Serial.println(dataInteger);
+    //Serial.print("After being signed: ");
+    //Serial.println(DataBinaryString);
 
     //Scale & bias/offset
     //Referenced from: https://www.csselectronics.com/screen/page/can-dbc-file-database-intro/language/en
