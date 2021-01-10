@@ -3,6 +3,9 @@
 CAN_message_t outMsg;    //Data structure for outbound messages
 CAN_message_t inMsg;     //Data structure for inbound messages
 
+//#include "CANBUS.h"
+//CANBUS CANBUS;
+
 //Used by cansend to show message data
 char msgString[128]; 
 
@@ -62,7 +65,7 @@ void loop() {
       Serial.println("");
 
       //Encode steer angle corolla
-      outMsg = encodeCAN(outMsg, 80, 3, 12, "MSB", "SIGNED", 0.05, -0.5);
+      //outMsg = CANBUS.encodeCAN(outMsg, 80, 3, 12, "MSB", "SIGNED", 1.5, 0);
       //Encode tesla ibooster status
       //outMsg = encodeCAN(outMsg, 5, 17, 3, "LSB", "UNSIGNED", 1, 0);
 
@@ -97,8 +100,8 @@ void canRead(){
   switch (inMsg.id) {
     case 0x123:
       Serial.print("decoded data: ");
-      double decodeddata = decodeCAN(inMsg, 14, 16, "LSB", "SIGNED", 0.5, -2);
-      Serial.print(decodeddata);
+      //double decodeddata = decodeCAN(inMsg, 14, 16, "LSB", "SIGNED", 0.5, -2);
+      //Serial.print(decodeddata);
       Serial.println(" units");
     break; 
     default:
@@ -112,6 +115,7 @@ void canSend(CAN_message_t msg){
   Serial.println(msgString);
   Can0.write(msg);
 }
+
 
 CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int bitLength, String byteOrder, String dataType, double Scale, double bias){
 
