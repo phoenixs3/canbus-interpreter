@@ -9,6 +9,8 @@ long unsigned int rxId;
 unsigned char len = 0;
 unsigned char rxBuf[8];
 
+char msgString[128]; 
+
 struct signalData {
   int sigLength;
   int startBit;
@@ -46,17 +48,17 @@ void loop() {
       Serial.print("Received text: ");
       Serial.println(tempint);
 
-      msg.id  = 0x120;
+      msg.id  = 0x123;
       msg.len = 8;
       msg.ext = 0;
-      msg.buf[0] = 0x00;  
+      msg.buf[0] = 0x01;  
       msg.buf[1] = 0x00;
-      msg.buf[2] = 0x00;
-      msg.buf[3] = 0x00;
-      msg.buf[4] = 0x00;
-      msg.buf[5] = 0x00;
-      msg.buf[6] = 0x00;
-      msg.buf[7] = 0x00;
+      msg.buf[2] = 0x01;
+      msg.buf[3] = 0x01;
+      msg.buf[4] = 0x01;
+      msg.buf[5] = 0x01;
+      msg.buf[6] = 0x01;
+      msg.buf[7] = 0x01;
 
       Serial.println("");
       Serial.println("Outbound message before encode:");
@@ -77,7 +79,7 @@ void loop() {
       Serial.println(msg.buf[7]);
       Serial.println("");
 
-      msg = encodeCAN(msg, -1, 0, 8, "LSB", "SIGNED", 1, 0);
+      msg = encodeCAN(msg, 4, 10, 4, "MSB", "UNSIGNED", 1, 0);
 
       Serial.println("");
       Serial.println("Outbound message after encode:");
@@ -98,6 +100,8 @@ void loop() {
       Serial.println(msg.buf[7]);
       Serial.println("");
 
+      SendCan(msg);
+
     }
     
   }
@@ -107,9 +111,9 @@ void loop() {
 void canread(){
   Can0.read(inMsg);
   switch (inMsg.id) {
-    case 0x0C2:
+    case 0x12C:
       Serial.print("decoded data: ");
-      double decodeddata = decodeCAN(inMsg.buf, inMsg.len, 0, 15, "MSB", "SIGNED", 0.04375, 0);
+      double decodeddata = decodeCAN(inMsg.buf, inMsg.len, 38, 10, "LSB", "UNSIGNED", 2, -0.5);
       Serial.print(decodeddata);
       Serial.println(" units");
     break;
@@ -127,6 +131,7 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
     inputData = (1/Scale) * (inputData - bias);
     Serial.print("After scale and bias: ");
     Serial.println(inputData);
+    //ok
 
     //////////////////////////////////////////////////////////////////////////////
     //Step 2 Account for signed values
@@ -140,6 +145,7 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
       Serial.print("After being signed: ");
       Serial.println(inputData);
     }
+    //ok(i think)
     
     //////////////////////////////////////////////////////////////////////////////
     //Step 3 Convert to string
@@ -147,13 +153,115 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
     String DataBinaryString = toBinary((int)inputData, bitLength);
     Serial.print("DataBinaryString: ");
     Serial.println(DataBinaryString);
+    //ok
+
+
+    //////////////////////////////////////////////////////////////////////////////
+    //Step 4 - Byte order correction
+    //////////////////////////////////////////////////////////////////////////////
+    if(byteOrder == "MSB" || byteOrder == "msb" || byteOrder == "motorola" || byteOrder == "MOTOROLA"){
+      //DataBinaryString = reverseString(DataBinaryString);  
+    }
+    Serial.print("After byte order correction: ");
+    Serial.println(DataBinaryString);
+    //not working!!!
+
+    //////////////////////////////////////////////////////////////////////////////
+    //Step 5 - Calculate section of string to insert into
+    //////////////////////////////////////////////////////////////////////////////
+    int startbitcalc;
+    int endbitcalc;
     
+    if(byteOrder == "MSB" || byteOrder == "msb" || byteOrder == "motorola" || byteOrder == "MOTOROLA"){
+        //needs redoing
+        if(startBit < 8 && startBit > -1) {startbitcalc = (7 - startBit);}
+        if(startBit < 16 && startBit > 7) {startbitcalc = (15 - startBit) + 8;}
+        if(startBit < 24 && startBit > 15){startbitcalc = (23 - startBit) + 16;}
+        if(startBit < 32 && startBit > 23){startbitcalc = (31 - startBit) + 24;}
+        if(startBit < 40 && startBit > 31){startbitcalc = (39 - startBit) + 32;}
+        if(startBit < 48 && startBit > 39){startbitcalc = (47 - startBit) + 40;}
+        if(startBit < 56 && startBit > 47){startbitcalc = (55 - startBit) + 48;}
+        if(startBit < 64 && startBit > 55){startbitcalc = (63 - startBit) + 56;}
+        endbitcalc = ((startbitcalc)+bitLength);
+    } else {
+      startbitcalc = startBit;
+      endbitcalc = startBit+bitLength;
+    }
+
+    //startbitcalc = 12;
+    //endbitcalc = 16;
     
+    Serial.print("startbitcalc: ");
+    Serial.println(startbitcalc);
+    Serial.print("endbitcalc: ");
+    Serial.println(endbitcalc);
+
+    //////////////////////////////////////////////////////////////////////////////
+    //Step 6 - Gets current data and make very long string
+    //////////////////////////////////////////////////////////////////////////////
+    String inputDataBinaryString;
+    for(int x=0; x<msg.len; x++){    
+      String tempdata = toBinary(msg.buf[x], 8); 
+      if(byteOrder == "MSB" || byteOrder == "msb" || byteOrder == "motorola" || byteOrder == "MOTOROLA"){
+        //tempdata = reverseString(tempdata);                                                             //maybe need to do for msb instead now
+      }
+      inputDataBinaryString = inputDataBinaryString + tempdata;                                         //Merge into mega long string
+    } 
+    Serial.print("Raw Binary Data input: ");
+    Serial.println(inputDataBinaryString);
     
+    //////////////////////////////////////////////////////////////////////////////
+    //Step 7 - Split input data string into chunks for left and right and merge in encoded data
+    //////////////////////////////////////////////////////////////////////////////
+    String leftportion = "";
+    String rightportion = "";
     
-    msg.buf[0] = inputData;
+    if(startbitcalc > 0){                                                                 //Check if not at very start of string
+      leftportion = inputDataBinaryString.substring(0, startbitcalc);
+    }
+    if(endbitcalc < inputDataBinaryString.length()){                                      //Check if not all the way at the end
+      rightportion = inputDataBinaryString.substring(endbitcalc, inputDataBinaryString.length());
+    }
+
+    Serial.print("leftportion: ");
+    Serial.println(leftportion);
+    Serial.print("rightportion: ");
+    Serial.println(rightportion);
+
+    DataBinaryString = leftportion + DataBinaryString + rightportion;                     //Merge together
+    Serial.print("After merge together:  ");
+    Serial.println(DataBinaryString);
+    //ok
+    
+    //////////////////////////////////////////////////////////////////////////////
+    //Step 8 - convert bytes to decimal and return message
+    //////////////////////////////////////////////////////////////////////////////
+    char byte0[9];
+    char byte1[9];
+    char byte2[9];
+    char byte3[9];
+    char byte4[9];
+    char byte5[9];
+    char byte6[9];
+    char byte7[9];
+    DataBinaryString.substring(0,8).toCharArray(byte0,9);
+    DataBinaryString.substring(9,16).toCharArray(byte1,9);
+    DataBinaryString.substring(16,24).toCharArray(byte2,9);
+    DataBinaryString.substring(24,32).toCharArray(byte3,9);
+    DataBinaryString.substring(32,40).toCharArray(byte4,9);
+    DataBinaryString.substring(40,48).toCharArray(byte5,9);
+    DataBinaryString.substring(48,56).toCharArray(byte6,9);
+    DataBinaryString.substring(56,64).toCharArray(byte7,9); 
+    msg.buf[0] = strtol(byte0, NULL, 2);
+    msg.buf[1] = strtol(byte1, NULL, 2);
+    msg.buf[2] = strtol(byte2, NULL, 2);
+    msg.buf[3] = strtol(byte3, NULL, 2);
+    msg.buf[4] = strtol(byte4, NULL, 2);
+    msg.buf[5] = strtol(byte5, NULL, 2);
+    msg.buf[6] = strtol(byte6, NULL, 2);
+    msg.buf[7] = strtol(byte7, NULL, 2);
     return msg;
-  
+    //ok
 }
 
 //Function for decoding canbus data, returns double of decoded data
@@ -211,7 +319,7 @@ double decodeCAN(unsigned char rxBufD[], int lengthD, int startBit, int bitLengt
 
 
     //////////////////////////////////////////////////////////////////////////////
-    //Step 4 - Account for signed 
+    //Step 4 - Convert to String
     //////////////////////////////////////////////////////////////////////////////
     int maxTheoraticalValue = (pow(2,(DataBinaryString.length()))-1);                                    //Minus one to account for zero
     //Serial.print("max theoretical value:");
@@ -221,6 +329,11 @@ double decodeCAN(unsigned char rxBufD[], int lengthD, int startBit, int bitLengt
     int dataInteger = strtol(tempholder, NULL, 2);                                                       //Convert from binary (base 2) to decimal
     //Serial.print("Raw integer: ");
     //Serial.println(dataInteger);
+    
+    
+    //////////////////////////////////////////////////////////////////////////////
+    //Step 4 - Account for signed values
+    //////////////////////////////////////////////////////////////////////////////
     if(dataType == "SIGNED" || dataType == "signed"){
       if(dataInteger > (maxTheoraticalValue/2)){dataInteger = dataInteger - (maxTheoraticalValue+1);}    //Convert to signed value
     }
@@ -253,4 +366,10 @@ String toBinary(int input1, int length1){
       for (int i = 1; i <= paddingToAdd; i++) {zeros = zeros + "0";}
       tempString = zeros + tempString;
     }  
+}
+
+void SendCan(CAN_message_t msg){
+  sprintf(msgString, "Sent ID: 0x%.3lX, Data: 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX", msg.id, msg.buf[0],msg.buf[1],msg.buf[2],msg.buf[3],msg.buf[4],msg.buf[5],msg.buf[6],msg.buf[7]);
+  Serial.println(msgString);
+  Can0.write(msg);
 }
