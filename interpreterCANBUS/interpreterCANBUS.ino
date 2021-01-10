@@ -51,7 +51,7 @@ void loop() {
       msg.id  = 0x123;
       msg.len = 8;
       msg.ext = 0;
-      msg.buf[0] = 0x01;  
+      msg.buf[0] = 0x00;  
       msg.buf[1] = 0x00;
       msg.buf[2] = 0x01;
       msg.buf[3] = 0x01;
@@ -79,7 +79,7 @@ void loop() {
       Serial.println(msg.buf[7]);
       Serial.println("");
 
-      msg = encodeCAN(msg, 4, 10, 4, "MSB", "UNSIGNED", 1, 0);
+      msg = encodeCAN(msg, 2014, 14, 16, "LSB", "UNSIGNED", 1, 0);
 
       Serial.println("");
       Serial.println("Outbound message after encode:");
@@ -159,8 +159,8 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
     //////////////////////////////////////////////////////////////////////////////
     //Step 4 - Byte order correction
     //////////////////////////////////////////////////////////////////////////////
-    if(byteOrder == "MSB" || byteOrder == "msb" || byteOrder == "motorola" || byteOrder == "MOTOROLA"){
-      //DataBinaryString = reverseString(DataBinaryString);  
+    if(byteOrder == "LSB" || byteOrder == "lsb" || byteOrder == "intel" || byteOrder == "INTEL"){
+      DataBinaryString = reverseString(DataBinaryString);  
     }
     Serial.print("After byte order correction: ");
     Serial.println(DataBinaryString);
@@ -185,12 +185,9 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
         endbitcalc = ((startbitcalc)+bitLength);
     } else {
       startbitcalc = startBit;
-      endbitcalc = startBit+bitLength;
-    }
-
-    //startbitcalc = 12;
-    //endbitcalc = 16;
-    
+      endbitcalc = (startBit+bitLength);
+      //checked, ok for lsb (endbit maybe one too many though
+    }    
     Serial.print("startbitcalc: ");
     Serial.println(startbitcalc);
     Serial.print("endbitcalc: ");
@@ -202,8 +199,8 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
     String inputDataBinaryString;
     for(int x=0; x<msg.len; x++){    
       String tempdata = toBinary(msg.buf[x], 8); 
-      if(byteOrder == "MSB" || byteOrder == "msb" || byteOrder == "motorola" || byteOrder == "MOTOROLA"){
-        //tempdata = reverseString(tempdata);                                                             //maybe need to do for msb instead now
+      if(byteOrder == "LSB" || byteOrder == "lsb" || byteOrder == "intel" || byteOrder == "INTEL"){
+        tempdata = reverseString(tempdata);
       }
       inputDataBinaryString = inputDataBinaryString + tempdata;                                         //Merge into mega long string
     } 
@@ -236,6 +233,8 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
     //////////////////////////////////////////////////////////////////////////////
     //Step 8 - convert bytes to decimal and return message
     //////////////////////////////////////////////////////////////////////////////
+
+    //need to swap each byte again for lsb!!!
     char byte0[9];
     char byte1[9];
     char byte2[9];
@@ -244,6 +243,24 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
     char byte5[9];
     char byte6[9];
     char byte7[9];
+    if(byteOrder == "LSB" || byteOrder == "lsb" || byteOrder == "intel" || byteOrder == "INTEL"){
+      String byte0s = reverseString(DataBinaryString.substring(0,8));
+      String byte1s = reverseString(DataBinaryString.substring(8,16));
+      String byte2s = reverseString(DataBinaryString.substring(16,24));
+      String byte3s = reverseString(DataBinaryString.substring(24,32));
+      String byte4s = reverseString(DataBinaryString.substring(32,40));
+      String byte5s = reverseString(DataBinaryString.substring(40,48));
+      String byte6s = reverseString(DataBinaryString.substring(48,56));
+      String byte7s = reverseString(DataBinaryString.substring(56,64));
+      byte0s.toCharArray(byte0,9);
+      byte1s.toCharArray(byte1,9);
+      byte2s.toCharArray(byte2,9);
+      byte3s.toCharArray(byte3,9);
+      byte4s.toCharArray(byte4,9);
+      byte5s.toCharArray(byte5,9);
+      byte6s.toCharArray(byte6,9);
+      byte7s.toCharArray(byte7,9); 
+    }else{
     DataBinaryString.substring(0,8).toCharArray(byte0,9);
     DataBinaryString.substring(9,16).toCharArray(byte1,9);
     DataBinaryString.substring(16,24).toCharArray(byte2,9);
@@ -252,6 +269,7 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
     DataBinaryString.substring(40,48).toCharArray(byte5,9);
     DataBinaryString.substring(48,56).toCharArray(byte6,9);
     DataBinaryString.substring(56,64).toCharArray(byte7,9); 
+    }
     msg.buf[0] = strtol(byte0, NULL, 2);
     msg.buf[1] = strtol(byte1, NULL, 2);
     msg.buf[2] = strtol(byte2, NULL, 2);
@@ -319,7 +337,7 @@ double decodeCAN(unsigned char rxBufD[], int lengthD, int startBit, int bitLengt
 
 
     //////////////////////////////////////////////////////////////////////////////
-    //Step 4 - Convert to String
+    //Step 4 - Convert to integer
     //////////////////////////////////////////////////////////////////////////////
     int maxTheoraticalValue = (pow(2,(DataBinaryString.length()))-1);                                    //Minus one to account for zero
     //Serial.print("max theoretical value:");
