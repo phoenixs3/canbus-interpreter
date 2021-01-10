@@ -11,7 +11,7 @@
 class CANBUS
 {
   public:
-    CAN_message_t CANBUS::encodeCAN(CAN_message_t msg, double inputData, int startBit, int bitLength, String byteOrder, String dataType, double Scale, double bias);
+    CAN_message_t CANBUS::encode(CAN_message_t msg, double inputData, int startBit, int bitLength, String byteOrder, String dataType, double Scale, double bias);
     double decode(CAN_message_t msg, int startBit, int bitLength, String byteOrder, String dataType, double Scale, double bias);
   private:
   	String reverseString(String inputString);

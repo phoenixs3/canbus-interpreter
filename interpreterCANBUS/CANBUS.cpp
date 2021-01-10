@@ -7,7 +7,7 @@
 #include <FlexCAN.h>
 
 
-CAN_message_t CANBUS::encodeCAN(CAN_message_t msg, double inputData, int startBit, int bitLength, String byteOrder, String dataType, double Scale, double bias){
+CAN_message_t CANBUS::encode(CAN_message_t msg, double inputData, int startBit, int bitLength, String byteOrder, String dataType, double Scale, double bias){
 
     //////////////////////////////////////////////////////////////////////////////
     //Step 1 Reverse Scale and bias
