@@ -22,7 +22,7 @@ CANBUS canbus;
 
 Call the decode method of the canbus class:  
 ``` c++
-canbus.decodeCAN(CAN_message_t msg, int startBit, int bitLength, String byteOrder, String dataType, double Scale, double bias)`
+canbus.decode(CAN_message_t msg, int startBit, int bitLength, String byteOrder, String dataType, double Scale, double bias)`
 ```
 
 For example  
@@ -36,7 +36,7 @@ returns a variable of data type double with the requsted signal details
   
 Call the encode method of the canbus class:  
 ``` c++
-canbus.encodeCAN(CAN_message_t msg, double inputData, int startBit, int bitLength, String byteOrder, String dataType, double Scale, double bias)
+canbus.encode(CAN_message_t msg, double inputData, int startBit, int bitLength, String byteOrder, String dataType, double Scale, double bias)
 ```
 
 Be sure to create an empty message beforehand with relevant ID and length. The function returns a `CAN_message_t` data type allowing the encodeCAN method to be called multiple times to pack several signals into one message
