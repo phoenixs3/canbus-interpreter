@@ -48,17 +48,17 @@ void loop() {
       Serial.print("Received text: ");
       Serial.println(tempint);
 
-      msg.id  = 0x123;
+      msg.id  = 0x39D;
       msg.len = 8;
       msg.ext = 0;
       msg.buf[0] = 0x00;  
       msg.buf[1] = 0x00;
-      msg.buf[2] = 0x01;
-      msg.buf[3] = 0x01;
-      msg.buf[4] = 0x01;
-      msg.buf[5] = 0x01;
-      msg.buf[6] = 0x01;
-      msg.buf[7] = 0x01;
+      msg.buf[2] = 0x00;
+      msg.buf[3] = 0x00;
+      msg.buf[4] = 0x00;
+      msg.buf[5] = 0x00;
+      msg.buf[6] = 0x00;
+      msg.buf[7] = 0x00;
 
       Serial.println("");
       Serial.println("Outbound message before encode:");
@@ -79,7 +79,9 @@ void loop() {
       Serial.println(msg.buf[7]);
       Serial.println("");
 
-      msg = encodeCAN(msg, 2014, 14, 16, "LSB", "UNSIGNED", 1, 0);
+      msg = encodeCAN(msg, 26, 20, 10, "LSB", "UNSIGNED", 0.05, -0.5);
+      
+      msg = encodeCAN(msg, 5, 17, 3, "LSB", "UNSIGNED", 1, 0);
 
       Serial.println("");
       Serial.println("Outbound message after encode:");
@@ -129,31 +131,28 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
     //Step 1 Reverse Scale and bias
     //////////////////////////////////////////////////////////////////////////////
     inputData = (1/Scale) * (inputData - bias);
-    Serial.print("After scale and bias: ");
-    Serial.println(inputData);
-    //ok
+    //Serial.print("After scale and bias: ");
+    //Serial.println(inputData);
 
     //////////////////////////////////////////////////////////////////////////////
     //Step 2 Account for signed values
     //////////////////////////////////////////////////////////////////////////////
     int maxTheoraticalValue = (pow(2,bitLength)-1);                                                        //Minus one to account for zero
-    Serial.print("max theoretical value:");
-    Serial.println(maxTheoraticalValue);
+    //Serial.print("max theoretical value:");
+    //Serial.println(maxTheoraticalValue);
     
     if(dataType == "SIGNED" || dataType == "signed"){
       if(inputData < 0){inputData = inputData + (maxTheoraticalValue+1);}                                  //Convert to signed value
-      Serial.print("After being signed: ");
-      Serial.println(inputData);
+      //Serial.print("After being signed: ");
+      //Serial.println(inputData);
     }
-    //ok(i think)
     
     //////////////////////////////////////////////////////////////////////////////
     //Step 3 Convert to string
     //////////////////////////////////////////////////////////////////////////////
     String DataBinaryString = toBinary((int)inputData, bitLength);
-    Serial.print("DataBinaryString: ");
-    Serial.println(DataBinaryString);
-    //ok
+    //Serial.print("DataBinaryString: ");
+    //Serial.println(DataBinaryString);
 
 
     //////////////////////////////////////////////////////////////////////////////
@@ -162,9 +161,8 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
     if(byteOrder == "LSB" || byteOrder == "lsb" || byteOrder == "intel" || byteOrder == "INTEL"){
       DataBinaryString = reverseString(DataBinaryString);  
     }
-    Serial.print("After byte order correction: ");
-    Serial.println(DataBinaryString);
-    //not working!!!
+    //Serial.print("After byte order correction: ");
+    //Serial.println(DataBinaryString);
 
     //////////////////////////////////////////////////////////////////////////////
     //Step 5 - Calculate section of string to insert into
@@ -186,12 +184,11 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
     } else {
       startbitcalc = startBit;
       endbitcalc = (startBit+bitLength);
-      //checked, ok for lsb (endbit maybe one too many though
     }    
-    Serial.print("startbitcalc: ");
-    Serial.println(startbitcalc);
-    Serial.print("endbitcalc: ");
-    Serial.println(endbitcalc);
+    //Serial.print("startbitcalc: ");
+    //Serial.println(startbitcalc);
+    //Serial.print("endbitcalc: ");
+    //Serial.println(endbitcalc);
 
     //////////////////////////////////////////////////////////////////////////////
     //Step 6 - Gets current data and make very long string
@@ -204,8 +201,8 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
       }
       inputDataBinaryString = inputDataBinaryString + tempdata;                                         //Merge into mega long string
     } 
-    Serial.print("Raw Binary Data input: ");
-    Serial.println(inputDataBinaryString);
+    //Serial.print("Raw Binary Data input: ");
+    //Serial.println(inputDataBinaryString);
     
     //////////////////////////////////////////////////////////////////////////////
     //Step 7 - Split input data string into chunks for left and right and merge in encoded data
@@ -220,15 +217,14 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
       rightportion = inputDataBinaryString.substring(endbitcalc, inputDataBinaryString.length());
     }
 
-    Serial.print("leftportion: ");
-    Serial.println(leftportion);
-    Serial.print("rightportion: ");
-    Serial.println(rightportion);
+    //Serial.print("leftportion: ");
+    //Serial.println(leftportion);
+    //Serial.print("rightportion: ");
+    //Serial.println(rightportion);
 
     DataBinaryString = leftportion + DataBinaryString + rightportion;                     //Merge together
-    Serial.print("After merge together:  ");
-    Serial.println(DataBinaryString);
-    //ok
+    //Serial.print("After merge together:  ");
+    //Serial.println(DataBinaryString);
     
     //////////////////////////////////////////////////////////////////////////////
     //Step 8 - convert bytes to decimal and return message
@@ -279,7 +275,6 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
     msg.buf[6] = strtol(byte6, NULL, 2);
     msg.buf[7] = strtol(byte7, NULL, 2);
     return msg;
-    //ok
 }
 
 //Function for decoding canbus data, returns double of decoded data
