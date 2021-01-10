@@ -1,27 +1,10 @@
-//#include <ArduinoJson.h>
-//#include <mcp_can.h>
-#include <FlexCAN.h>  //https://github.com/collin80/FlexCAN_Library
-CAN_message_t msg;    //Data structure for outbound messages
-CAN_message_t inMsg;  //Data structure for inbound messages
+//#include <mcp_can.h>   //Arduino can support coming soon!
+#include <FlexCAN.h>     //https://github.com/collin80/FlexCAN_Library
+CAN_message_t outMsg;    //Data structure for outbound messages
+CAN_message_t inMsg;     //Data structure for inbound messages
 
-//Data varianbles for CAN
-long unsigned int rxId;
-unsigned char len = 0;
-unsigned char rxBuf[8];
-
+//Used by cansend to show message data
 char msgString[128]; 
-
-struct signalData {
-  int sigLength;
-  int startBit;
-  int bitLength;
-  int byteOrder;
-  int dataType;
-  double Scale;
-  double bias;
-  double minVal;
-  double maxVal;
-};
 
 void setup() {
   Serial.begin(115200);
@@ -34,7 +17,6 @@ void setup() {
   allPassFilter.ext = 1;
   allPassFilter.rtr = 0;
   for (int filterNum = 4; filterNum < 16; filterNum++) {Can0.setFilter(allPassFilter, filterNum);}
-
   Serial.setTimeout(20);
   Serial.println("done");
 }
@@ -45,84 +27,89 @@ void loop() {
     //Sets requested charging current to serial input (providing its within allowable range)
     if (tempint > 0){
       
-      Serial.print("Received text: ");
-      Serial.println(tempint);
+      //Serial.print("Received text: ");
+      //Serial.println(tempint);
 
-      msg.id  = 0x39D;
-      msg.len = 8;
-      msg.ext = 0;
-      msg.buf[0] = 0x00;  
-      msg.buf[1] = 0x00;
-      msg.buf[2] = 0x00;
-      msg.buf[3] = 0x00;
-      msg.buf[4] = 0x00;
-      msg.buf[5] = 0x00;
-      msg.buf[6] = 0x00;
-      msg.buf[7] = 0x00;
+      outMsg.id  = 0x39D;
+      outMsg.len = 8;
+      outMsg.ext = 0;
+      outMsg.buf[0] = 0x00;  
+      outMsg.buf[1] = 0x00;
+      outMsg.buf[2] = 0x00;
+      outMsg.buf[3] = 0x00;
+      outMsg.buf[4] = 0x00;
+      outMsg.buf[5] = 0x00;
+      outMsg.buf[6] = 0x00;
+      outMsg.buf[7] = 0x00;
 
       Serial.println("");
       Serial.println("Outbound message before encode:");
       Serial.print("ID: ");
-      Serial.println(msg.id);
+      Serial.println(outMsg.id);
       Serial.print("LENGTH: ");
-      Serial.println(msg.len);
+      Serial.println(outMsg.len);
       Serial.print("EXT: ");
-      Serial.println(msg.ext);
+      Serial.println(outMsg.ext);
       Serial.println("DATA: ");
-      Serial.println(msg.buf[0]);
-      Serial.println(msg.buf[1]);
-      Serial.println(msg.buf[2]);
-      Serial.println(msg.buf[3]);
-      Serial.println(msg.buf[4]);
-      Serial.println(msg.buf[5]);
-      Serial.println(msg.buf[6]);
-      Serial.println(msg.buf[7]);
+      Serial.println(outMsg.buf[0]);
+      Serial.println(outMsg.buf[1]);
+      Serial.println(outMsg.buf[2]);
+      Serial.println(outMsg.buf[3]);
+      Serial.println(outMsg.buf[4]);
+      Serial.println(outMsg.buf[5]);
+      Serial.println(outMsg.buf[6]);
+      Serial.println(outMsg.buf[7]);
       Serial.println("");
 
-      msg = encodeCAN(msg, 26, 20, 10, "LSB", "UNSIGNED", 0.05, -0.5);
-      
-      msg = encodeCAN(msg, 5, 17, 3, "LSB", "UNSIGNED", 1, 0);
+      //Encode tesla ibooster brakeinputstroke
+      outMsg = encodeCAN(outMsg, 26, 20, 10, "LSB", "UNSIGNED", 0.05, -0.5);
+      //Encode tesla ibooster status
+      outMsg = encodeCAN(outMsg, 5, 17, 3, "LSB", "UNSIGNED", 1, 0);
 
       Serial.println("");
       Serial.println("Outbound message after encode:");
       Serial.print("ID: ");
-      Serial.println(msg.id);
+      Serial.println(outMsg.id);
       Serial.print("LENGTH: ");
-      Serial.println(msg.len);
+      Serial.println(outMsg.len);
       Serial.print("EXT: ");
-      Serial.println(msg.ext);
+      Serial.println(outMsg.ext);
       Serial.println("DATA: ");
-      Serial.println(msg.buf[0]);
-      Serial.println(msg.buf[1]);
-      Serial.println(msg.buf[2]);
-      Serial.println(msg.buf[3]);
-      Serial.println(msg.buf[4]);
-      Serial.println(msg.buf[5]);
-      Serial.println(msg.buf[6]);
-      Serial.println(msg.buf[7]);
+      Serial.println(outMsg.buf[0]);
+      Serial.println(outMsg.buf[1]);
+      Serial.println(outMsg.buf[2]);
+      Serial.println(outMsg.buf[3]);
+      Serial.println(outMsg.buf[4]);
+      Serial.println(outMsg.buf[5]);
+      Serial.println(outMsg.buf[6]);
+      Serial.println(outMsg.buf[7]);
       Serial.println("");
-
-      SendCan(msg);
-
+      
+      canSend(outMsg);
     }
     
   }
-  while (Can0.available()){canread();}
+  while (Can0.available()){canRead();}
 }
 
-void canread(){
+void canRead(){
   Can0.read(inMsg);
   switch (inMsg.id) {
-    case 0x12C:
+    case 0x123:
       Serial.print("decoded data: ");
-      double decodeddata = decodeCAN(inMsg.buf, inMsg.len, 38, 10, "LSB", "UNSIGNED", 2, -0.5);
+      double decodeddata = decodeCAN(inMsg, 14, 16, "LSB", "SIGNED", 0.5, -2);
       Serial.print(decodeddata);
       Serial.println(" units");
-    break;
-    
+    break; 
     default:
       break;
   }
+}
+
+void canSend(CAN_message_t msg){
+  sprintf(msgString, "Sent ID: 0x%.3lX, Data: 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX", msg.id, msg.buf[0],msg.buf[1],msg.buf[2],msg.buf[3],msg.buf[4],msg.buf[5],msg.buf[6],msg.buf[7]);
+  Serial.println(msgString);
+  Can0.write(msg);
 }
 
 CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int bitLength, String byteOrder, String dataType, double Scale, double bias){
@@ -230,7 +217,7 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
     //Step 8 - convert bytes to decimal and return message
     //////////////////////////////////////////////////////////////////////////////
 
-    //need to swap each byte again for lsb!!!
+
     char byte0[9];
     char byte1[9];
     char byte2[9];
@@ -240,6 +227,7 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
     char byte6[9];
     char byte7[9];
     if(byteOrder == "LSB" || byteOrder == "lsb" || byteOrder == "intel" || byteOrder == "INTEL"){
+      //need to swap each byte again for lsb
       String byte0s = reverseString(DataBinaryString.substring(0,8));
       String byte1s = reverseString(DataBinaryString.substring(8,16));
       String byte2s = reverseString(DataBinaryString.substring(16,24));
@@ -277,18 +265,20 @@ CAN_message_t encodeCAN(CAN_message_t msg, double inputData, int startBit, int b
     return msg;
 }
 
-//Function for decoding canbus data, returns double of decoded data
-//Arguments: Input data array, frame length, starting bit, signal bit length, byte order, 
-//           return data type (unsigned, signed), scale, bias, minValue, maxValue, mux, muxValue
-double decodeCAN(unsigned char rxBufD[], int lengthD, int startBit, int bitLength, String byteOrder, String dataType, double Scale, double bias){
+double decodeCAN(CAN_message_t msg, int startBit, int bitLength, String byteOrder, String dataType, double Scale, double bias){
 
+    //used to be: rxBufD
+    //now: msg.buf
+
+    //used to be: lengthD
+    //now: msg.len
 
     //////////////////////////////////////////////////////////////////////////////
     //Step 1 - Gets all received data and converts to super long string
     //////////////////////////////////////////////////////////////////////////////
     String DataBinaryString;
-    for(int x=0; x<lengthD; x++){    
-      String tempdata = toBinary(rxBufD[x], 8); 
+    for(int x=0; x<msg.len; x++){    
+      String tempdata = toBinary(msg.buf[x], 8); 
       if(byteOrder == "LSB" || byteOrder == "lsb" || byteOrder == "intel" || byteOrder == "INTEL"){
         tempdata = reverseString(tempdata);                                                               //For LSB byte order flip each byte around first
       }
@@ -379,10 +369,4 @@ String toBinary(int input1, int length1){
       for (int i = 1; i <= paddingToAdd; i++) {zeros = zeros + "0";}
       tempString = zeros + tempString;
     }  
-}
-
-void SendCan(CAN_message_t msg){
-  sprintf(msgString, "Sent ID: 0x%.3lX, Data: 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX", msg.id, msg.buf[0],msg.buf[1],msg.buf[2],msg.buf[3],msg.buf[4],msg.buf[5],msg.buf[6],msg.buf[7]);
-  Serial.println(msgString);
-  Can0.write(msg);
 }
