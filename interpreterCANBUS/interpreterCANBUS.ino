@@ -30,7 +30,7 @@ void loop() {
       //Serial.print("Received text: ");
       //Serial.println(tempint);
 
-      outMsg.id  = 0x39D;
+      outMsg.id  = 0x025;
       outMsg.len = 8;
       outMsg.ext = 0;
       outMsg.buf[0] = 0x00;  
@@ -61,10 +61,10 @@ void loop() {
       Serial.println(outMsg.buf[7]);
       Serial.println("");
 
-      //Encode tesla ibooster brakeinputstroke
-      outMsg = encodeCAN(outMsg, 26, 20, 10, "LSB", "UNSIGNED", 0.05, -0.5);
+      //Encode steer angle corolla
+      outMsg = encodeCAN(outMsg, 80, 3, 12, "MSB", "SIGNED", 0.05, -0.5);
       //Encode tesla ibooster status
-      outMsg = encodeCAN(outMsg, 5, 17, 3, "LSB", "UNSIGNED", 1, 0);
+      //outMsg = encodeCAN(outMsg, 5, 17, 3, "LSB", "UNSIGNED", 1, 0);
 
       Serial.println("");
       Serial.println("Outbound message after encode:");
@@ -107,7 +107,8 @@ void canRead(){
 }
 
 void canSend(CAN_message_t msg){
-  sprintf(msgString, "Sent ID: 0x%.3lX, Data: 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX", msg.id, msg.buf[0],msg.buf[1],msg.buf[2],msg.buf[3],msg.buf[4],msg.buf[5],msg.buf[6],msg.buf[7]);
+  sprintf(msgString, "Sent ID: 0x%.3lX, Data: 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX, 0x%.3lX", 
+  msg.id, msg.buf[0],msg.buf[1],msg.buf[2],msg.buf[3],msg.buf[4],msg.buf[5],msg.buf[6],msg.buf[7]);
   Serial.println(msgString);
   Can0.write(msg);
 }
